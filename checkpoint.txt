@@ -1,4 +1,4 @@
-Download checkpoint from https://reurl.cc/NlvV2Q.
+Download checkpoint from https://drive.google.com/drive/folders/1oqlVAMqEKrxeCYp-p3-gn3cmXPuyyKFQ?usp=sharing.
 
 1. pretrain_model.pth => pretained model
-2. dqdetr_best305.pth => DQ-DETR model on AITOD-V2 with 30.5 AP
+2. best.pth => CG-BFM-DETR model on Visdrone-2019-val with 36.9 AP
