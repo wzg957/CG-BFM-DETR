@@ -50,6 +50,7 @@ The Pretrained Weights and best model weights evaluated on the VisDrone dataset 
 
 ## 💻 Training
 Our training strategy adopts a meticulous **two-stage progressive fine-tuning** approach to ensure the stability of the bidirectional feature modulation.
+https://drive.google.com/drive/folders/1oqlVAMqEKrxeCYp-p3-gn3cmXPuyyKFQ?usp=sharing.
 
 **Stage 1: Initial Feature Alignment**
 ```bash
