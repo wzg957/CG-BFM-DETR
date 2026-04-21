@@ -41,12 +41,11 @@ The CG-BFM module relies on offline context templates (spatial and relation prio
 ```bash
 python mine_context_templates.py
 ```
-*(Note: Please ensure the annotation and image paths in the script point to your corresponding dataset directories).*
 
 ## 🏋️ Pretrained Weights
 The Pretrained Weights and best model weights evaluated on the VisDrone dataset are hosted externally:
 
-* [Baidu Netdisk Link] (Password: xxxx) *(Link to be updated after blind review)*
+https://drive.google.com/drive/folders/1oqlVAMqEKrxeCYp-p3-gn3cmXPuyyKFQ?usp=drive_link.
 
 ## 💻 Training
 Our training strategy adopts a meticulous **two-stage progressive fine-tuning** approach to ensure the stability of the bidirectional feature modulation.
