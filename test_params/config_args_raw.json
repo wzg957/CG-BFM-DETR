@@ -1,0 +1,41 @@
+{
+  "config_file": "config/DQ_5scale.py",
+  "options": {
+    "num_classes": 10,
+    "dn_labelbook_size": 10,
+    "ccm_coeff": 0.01,
+    "use_cgfe": false,
+    "dynamic_query_list": [
+      "[300",
+      500,
+      900,
+      "1500]"
+    ]
+  },
+  "dataset_file": "aitod_v2",
+  "coco_path": "/comp_robot/cv_public_dataset/COCO2017/",
+  "coco_panoptic_path": null,
+  "remove_difficult": false,
+  "fix_size": false,
+  "output_dir": "test_params",
+  "note": "",
+  "device": "cuda",
+  "seed": 42,
+  "resume": "",
+  "pretrain_model_path": null,
+  "finetune_ignore": null,
+  "start_epoch": 0,
+  "eval": false,
+  "num_workers": 10,
+  "test": false,
+  "debug": false,
+  "find_unused_params": false,
+  "save_results": false,
+  "save_log": false,
+  "world_size": 1,
+  "dist_url": "env://",
+  "rank": 0,
+  "local_rank": 0,
+  "amp": false,
+  "distributed": false
+}
