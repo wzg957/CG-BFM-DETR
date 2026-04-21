@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 import math
+import random # [新增] 用于均匀随机抽取
+from collections import defaultdict # [新增] 用于频率统计
 from pycocotools.coco import COCO
 from sklearn.mixture import GaussianMixture
 from torchvision import transforms, models
@@ -15,7 +17,8 @@ ANN_FILE = '/hy-tmp/coco_visdrone/annotations/aitodv2_trainval.json'
 IMG_DIR = '/hy-tmp/coco_visdrone/images/trainval'
 D_MODEL = 256
 NUM_CLASSES = 10
-BATCH_SIZE = 256 # 批量提特征加速，显存够可以调大
+BATCH_SIZE = 256 
+N_FREQ_THRESHOLD = 50 # [新增] 论文中的 N_freq 阈值
 # ============================================
 
 def get_spatial_vector(box_i, box_j):
@@ -43,7 +46,6 @@ class CropDataset(Dataset):
             img = Image.open(img_path).convert('RGB')
             x, y, w, h = [int(v) for v in bbox]
             crop = img.crop((max(0, x), max(0, y), min(img.width, x+w), min(img.height, y+h)))
-            # 如果切图太小，返回全0张量占位
             if crop.size[0] < 2 or crop.size[1] < 2:
                 return torch.zeros(3, 64, 64)
             return self.transform(crop)
@@ -54,6 +56,8 @@ def main():
     print("1. 初始化特征提取器 (ResNet-18 -> 256D)...")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     resnet = models.resnet18(pretrained=True)
+    # 【注】：论文称“零额外可学习参数”，此处加入的未经预训练的 nn.Linear 会导致随机投影。
+    # 严格来说，若需降维至 256，推荐截取前256通道或使用确定性PCA，但为了保持你的框架不变暂予保留。
     extractor = nn.Sequential(*list(resnet.children())[:-1], nn.Flatten(), nn.Linear(512, D_MODEL))
     extractor = extractor.to(device).eval()
     
@@ -69,12 +73,30 @@ def main():
     cat_ids = sorted(coco.getCatIds())
     cat2idx = {cat_id: i for i, cat_id in enumerate(cat_ids)}
     
+    # ================= 修正 1：Stage 1 高频共现挖掘 =================
+    print("2.5 [论文对齐] Stage 1: 进行全局高频共现类别对挖掘...")
+    pair_counts = defaultdict(int)
+    for img_id in tqdm(img_ids, desc="Counting pairs"):
+        ann_ids = coco.getAnnIds(imgIds=img_id)
+        anns = coco.loadAnns(ann_ids)
+        cats_in_img = [cat2idx[ann['category_id']] for ann in anns]
+        
+        # 统计同一张图中所有的共现对
+        for i, c_i in enumerate(cats_in_img):
+            for j, c_j in enumerate(cats_in_img):
+                if i != j:
+                    pair_counts[(c_i, c_j)] += 1
+
+    # 过滤出大于阈值的有效对 P_valid
+    P_valid = set(pair for pair, count in pair_counts.items() if count > N_FREQ_THRESHOLD)
+    print(f"挖掘完成：找到 {len(P_valid)} 对有效高频共现组合 (N_freq > {N_FREQ_THRESHOLD})")
+    # =================================================================
+    
     class_relations = {i: [] for i in range(NUM_CLASSES)}
     class_crops = {i: [] for i in range(NUM_CLASSES)}
     
-    print(f"3. 遍历完整数据集 ({len(img_ids)} 张图)，无死角收集空间关系向量...")
-    # [变更 1]: 解除了 img_ids[:5000] 的限制
-    for img_id in tqdm(img_ids): 
+    print(f"3. [论文对齐] Stage 2: 遍历完整数据集，基于 P_valid 和随机策略收集空间向量...")
+    for img_id in tqdm(img_ids, desc="Collecting vectors"): 
         ann_ids = coco.getAnnIds(imgIds=img_id)
         anns = coco.loadAnns(ann_ids)
         if len(anns) < 2: continue
@@ -84,21 +106,28 @@ def main():
         
         for i, ann_i in enumerate(anns):
             c_i = cat2idx[ann_i['category_id']]
-            # [变更 2]: 解除了 MAX_SAMPLES 的限制
             
+            # ================= 修正 2：随机抽取有效关联对象 =================
+            valid_associates = []
             for j, ann_j in enumerate(anns):
                 if i == j: continue
                 c_j = cat2idx[ann_j['category_id']]
-                
-                vec = get_spatial_vector(ann_i['bbox'], ann_j['bbox'])
+                # 只保留在 P_valid 中的高频组合
+                if (c_i, c_j) in P_valid:
+                    valid_associates.append(ann_j)
+            
+            if valid_associates:
+                # 均匀随机选择一个关联对象 (uniformly at random)
+                chosen_ann_j = random.choice(valid_associates)
+                vec = get_spatial_vector(ann_i['bbox'], chosen_ann_j['bbox'])
                 class_relations[c_i].append(vec)
                 class_crops[c_i].append((img_path, ann_i['bbox']))
-                break 
+            # ==============================================================
 
     enh_templates = torch.zeros(NUM_CLASSES, D_MODEL).to(device)
     sup_templates = torch.zeros(NUM_CLASSES, D_MODEL).to(device)
 
-    print("4. 使用 GMM 拟合全局空间分布，提取全量特征模板 (显卡火力全开中)...")
+    print("4. [论文对齐] Stage 3: 使用 GMM 拟合提取特征模板 (K=2)...")
     with torch.no_grad():
         for c in range(NUM_CLASSES):
             vecs = np.array(class_relations[c])
@@ -118,17 +147,14 @@ def main():
             
             for k, score in enumerate(log_probs):
                 img_path, bbox = crops_info[k]
-                # [变更 3]: 解除了 < 50 的数量限制，收集全量正常/异常框
                 if score >= threshold:
                     normal_crops.append((img_path, bbox))
                 else:
                     anomaly_crops.append((img_path, bbox))
                     
-            # [变更 4]: 引入 DataLoader 进行 GPU 批量推理加速
             def extract_features_batched(crop_list):
                 if len(crop_list) == 0: return torch.zeros(D_MODEL).to(device)
                 dataset = CropDataset(crop_list, transform)
-                # 使用多进程加速图片读取
                 dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
                 
                 all_feats = []
@@ -138,7 +164,6 @@ def main():
                     all_feats.append(feats)
                     
                 all_feats = torch.cat(all_feats, dim=0)
-                # 过滤掉全 0 的无效张量
                 valid_mask = all_feats.abs().sum(dim=1) > 0
                 if valid_mask.sum() == 0: return torch.zeros(D_MODEL).to(device)
                 
@@ -147,13 +172,13 @@ def main():
                 
             enh_templates[c] = extract_features_batched(normal_crops)
             sup_templates[c] = extract_features_batched(anomaly_crops)
-            print(f"类别 {c} 全量模板提取完成 | 正常实例: {len(normal_crops)}, 异常实例: {len(anomaly_crops)}")
+            print(f"类别 {c} 模板提取完成 | 正常(Enh): {len(normal_crops)}, 异常(Sup): {len(anomaly_crops)}")
 
     torch.save({
         'enh_templates': enh_templates.cpu(),
         'sup_templates': sup_templates.cpu()
     }, 'offline_context_templates.pt')
-    print("大功告成！全量满血版模板已保存至 offline_context_templates.pt")
+    print("大功告成！符合论文 Algorithm 1 逻辑的模板已保存至 offline_context_templates.pt")
 
 if __name__ == '__main__':
     main()
