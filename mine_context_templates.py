@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 import math
-import random # [新增] 用于均匀随机抽取
-from collections import defaultdict # [新增] 用于频率统计
+import random 
+from collections import defaultdict 
 from pycocotools.coco import COCO
 from sklearn.mixture import GaussianMixture
 from torchvision import transforms, models
@@ -12,17 +12,16 @@ from PIL import Image
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
-# ================= 配置区域 =================
+
 ANN_FILE = '/hy-tmp/coco_visdrone/annotations/aitodv2_trainval.json' 
 IMG_DIR = '/hy-tmp/coco_visdrone/images/trainval'
 D_MODEL = 256
 NUM_CLASSES = 10
 BATCH_SIZE = 256 
-N_FREQ_THRESHOLD = 50 # [新增] 论文中的 N_freq 阈值
-# ============================================
+N_FREQ_THRESHOLD = 50
 
 def get_spatial_vector(box_i, box_j):
-    """计算两个框的相对空间特征向量"""
+    
     xi, yi, wi, hi = box_i
     xj, yj, wj, hj = box_j
     dx = (xj + wj/2 - (xi + wi/2)) / wi
@@ -32,7 +31,7 @@ def get_spatial_vector(box_i, box_j):
     return [dx, dy, dw, dh]
 
 class CropDataset(Dataset):
-    """用于并行加速的切图 Dataset"""
+    
     def __init__(self, crop_list, transform):
         self.crop_list = crop_list
         self.transform = transform
@@ -56,8 +55,7 @@ def main():
     print("1. 初始化特征提取器 (ResNet-18 -> 256D)...")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     resnet = models.resnet18(pretrained=True)
-    # 【注】：论文称“零额外可学习参数”，此处加入的未经预训练的 nn.Linear 会导致随机投影。
-    # 严格来说，若需降维至 256，推荐截取前256通道或使用确定性PCA，但为了保持你的框架不变暂予保留。
+    
     extractor = nn.Sequential(*list(resnet.children())[:-1], nn.Flatten(), nn.Linear(512, D_MODEL))
     extractor = extractor.to(device).eval()
     
@@ -73,7 +71,7 @@ def main():
     cat_ids = sorted(coco.getCatIds())
     cat2idx = {cat_id: i for i, cat_id in enumerate(cat_ids)}
     
-    # ================= 修正 1：Stage 1 高频共现挖掘 =================
+    
     print("2.5 [论文对齐] Stage 1: 进行全局高频共现类别对挖掘...")
     pair_counts = defaultdict(int)
     for img_id in tqdm(img_ids, desc="Counting pairs"):
@@ -81,16 +79,15 @@ def main():
         anns = coco.loadAnns(ann_ids)
         cats_in_img = [cat2idx[ann['category_id']] for ann in anns]
         
-        # 统计同一张图中所有的共现对
+        
         for i, c_i in enumerate(cats_in_img):
             for j, c_j in enumerate(cats_in_img):
                 if i != j:
                     pair_counts[(c_i, c_j)] += 1
 
-    # 过滤出大于阈值的有效对 P_valid
+    
     P_valid = set(pair for pair, count in pair_counts.items() if count > N_FREQ_THRESHOLD)
     print(f"挖掘完成：找到 {len(P_valid)} 对有效高频共现组合 (N_freq > {N_FREQ_THRESHOLD})")
-    # =================================================================
     
     class_relations = {i: [] for i in range(NUM_CLASSES)}
     class_crops = {i: [] for i in range(NUM_CLASSES)}
@@ -107,22 +104,22 @@ def main():
         for i, ann_i in enumerate(anns):
             c_i = cat2idx[ann_i['category_id']]
             
-            # ================= 修正 2：随机抽取有效关联对象 =================
+            
             valid_associates = []
             for j, ann_j in enumerate(anns):
                 if i == j: continue
                 c_j = cat2idx[ann_j['category_id']]
-                # 只保留在 P_valid 中的高频组合
+                
                 if (c_i, c_j) in P_valid:
                     valid_associates.append(ann_j)
             
             if valid_associates:
-                # 均匀随机选择一个关联对象 (uniformly at random)
+                
                 chosen_ann_j = random.choice(valid_associates)
                 vec = get_spatial_vector(ann_i['bbox'], chosen_ann_j['bbox'])
                 class_relations[c_i].append(vec)
                 class_crops[c_i].append((img_path, ann_i['bbox']))
-            # ==============================================================
+            
 
     enh_templates = torch.zeros(NUM_CLASSES, D_MODEL).to(device)
     sup_templates = torch.zeros(NUM_CLASSES, D_MODEL).to(device)
@@ -178,7 +175,7 @@ def main():
         'enh_templates': enh_templates.cpu(),
         'sup_templates': sup_templates.cpu()
     }, 'offline_context_templates.pt')
-    print("大功告成！符合论文 Algorithm 1 逻辑的模板已保存至 offline_context_templates.pt")
+    
 
 if __name__ == '__main__':
     main()
