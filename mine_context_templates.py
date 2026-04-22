@@ -12,16 +12,15 @@ from PIL import Image
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
-
+# ================= 配置参数 =================
 ANN_FILE = '/hy-tmp/coco_visdrone/annotations/aitodv2_trainval.json' 
 IMG_DIR = '/hy-tmp/coco_visdrone/images/trainval'
 D_MODEL = 256
 NUM_CLASSES = 10
 BATCH_SIZE = 256 
-N_FREQ_THRESHOLD = 50
+RELATIVE_THRESHOLD = 0.05 
 
 def get_spatial_vector(box_i, box_j):
-    
     xi, yi, wi, hi = box_i
     xj, yj, wj, hj = box_j
     dx = (xj + wj/2 - (xi + wi/2)) / wi
@@ -31,7 +30,6 @@ def get_spatial_vector(box_i, box_j):
     return [dx, dy, dw, dh]
 
 class CropDataset(Dataset):
-    
     def __init__(self, crop_list, transform):
         self.crop_list = crop_list
         self.transform = transform
@@ -71,28 +69,43 @@ def main():
     cat_ids = sorted(coco.getCatIds())
     cat2idx = {cat_id: i for i, cat_id in enumerate(cat_ids)}
     
+    print("2.5 [论文对齐] Stage 1: 进行全局高频共现类别对挖掘 (基于相对比例)...")
     
-    print("2.5 [论文对齐] Stage 1: 进行全局高频共现类别对挖掘...")
-    pair_counts = defaultdict(int)
-    for img_id in tqdm(img_ids, desc="Counting pairs"):
+    # 记录类别 c_i 出现的图片总数
+    cat_img_counts = defaultdict(int)
+    # 记录 c_i 和 c_j 同时出现的图片总数
+    pair_img_counts = defaultdict(int)
+    
+    for img_id in tqdm(img_ids, desc="Counting Image-level Co-occurrences"):
         ann_ids = coco.getAnnIds(imgIds=img_id)
         anns = coco.loadAnns(ann_ids)
-        cats_in_img = [cat2idx[ann['category_id']] for ann in anns]
+        # 获取该图片中包含的所有去重类别
+        cats_in_img = set([cat2idx[ann['category_id']] for ann in anns])
         
-        
-        for i, c_i in enumerate(cats_in_img):
-            for j, c_j in enumerate(cats_in_img):
-                if i != j:
-                    pair_counts[(c_i, c_j)] += 1
+        # 统计单类别图片数
+        for c in cats_in_img:
+            cat_img_counts[c] += 1
+            
+        # 统计组合图片数
+        for c_i in cats_in_img:
+            for c_j in cats_in_img:
+                if c_i != c_j:
+                    pair_img_counts[(c_i, c_j)] += 1
 
-    
-    P_valid = set(pair for pair, count in pair_counts.items() if count > N_FREQ_THRESHOLD)
-    print(f"挖掘完成：找到 {len(P_valid)} 对有效高频共现组合 (N_freq > {N_FREQ_THRESHOLD})")
+    # 纯相对比例过滤
+    P_valid = set()
+    for (c_i, c_j), count in pair_img_counts.items():
+        # 计算比例：在包含 c_i 的图片中，有多少比例也包含了 c_j
+        co_occur_ratio = count / cat_img_counts[c_i]
+        if co_occur_ratio > RELATIVE_THRESHOLD:
+            P_valid.add((c_i, c_j))
+            
+    print(f"挖掘完成：基于 {RELATIVE_THRESHOLD*100}% 阈值，找到 {len(P_valid)} 对有效高频共现组合")
     
     class_relations = {i: [] for i in range(NUM_CLASSES)}
     class_crops = {i: [] for i in range(NUM_CLASSES)}
     
-    print(f"3. [论文对齐] Stage 2: 遍历完整数据集，基于 P_valid 和随机策略收集空间向量...")
+    print(f"3. [论文对齐] Stage 2: 遍历完整数据集，基于 P_valid 收集空间向量...")
     for img_id in tqdm(img_ids, desc="Collecting vectors"): 
         ann_ids = coco.getAnnIds(imgIds=img_id)
         anns = coco.loadAnns(ann_ids)
@@ -104,7 +117,6 @@ def main():
         for i, ann_i in enumerate(anns):
             c_i = cat2idx[ann_i['category_id']]
             
-            
             valid_associates = []
             for j, ann_j in enumerate(anns):
                 if i == j: continue
@@ -114,7 +126,6 @@ def main():
                     valid_associates.append(ann_j)
             
             if valid_associates:
-                
                 chosen_ann_j = random.choice(valid_associates)
                 vec = get_spatial_vector(ann_i['bbox'], chosen_ann_j['bbox'])
                 class_relations[c_i].append(vec)
