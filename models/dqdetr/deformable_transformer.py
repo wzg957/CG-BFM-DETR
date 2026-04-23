@@ -123,8 +123,7 @@ class DeformableTransformer(nn.Module):
         
         self.dynamic_query_list = dynamic_query_list
         self.CCM = CategoricalCounting(cls_num=self.ccm_cls_num)
-        # self.CGFE = CGFE(gate_channels=256, reduction_ratio=16, num_feature_levels=self.num_feature_levels)
-        # self.multiscale = MultiScaleFeature(is_5_scale=True)
+        
         
         self.ca_bfm = CABFM(d_model=d_model, num_classes=self.ccm_cls_num)
         
@@ -331,9 +330,7 @@ class DeformableTransformer(nn.Module):
         #########################################################  
         
         counting_output, ccm_feature = self.CCM(memory, spatial_shapes)
-        # multi_ccm_feature = self.multiscale(ccm_feature)
-        # cgfe_out = self.CGFE(multi_ccm_feature, memory, spatial_shapes)
-        # memory = cgfe_out        
+              
         
         # ==============================================================
         # 1. 将 1D memory 还原为 2D 多尺度特征图列表
