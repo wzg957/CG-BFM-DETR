@@ -234,7 +234,6 @@ class DQDETR(nn.Module):
         """
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
-        # 恢复成这样！不要在这里做尺度选择了！
         features, poss = self.backbone(samples)
         srcs = []
         masks = []
