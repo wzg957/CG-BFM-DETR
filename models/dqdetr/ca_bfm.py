@@ -4,9 +4,8 @@ import torch.nn as nn
 class CABFM(nn.Module):
     """
     Context-Guided Bidirectional Feature Modulation (CA-BFM)
-    专利版：离线数据驱动上下文双向调制模块 (Dense Pixel-Matching)
-    *** 当前版本: Model 1 (原始巅峰 36.9% 版) ***
-    """
+    
+    
     def __init__(self, d_model=256, num_classes=10, template_path='/hy-tmp/DQ-DETR-Patent/offline_context_templates.pt'):
         super().__init__()
         self.d_model = d_model
@@ -27,9 +26,7 @@ class CABFM(nn.Module):
             nn.Linear(d_model, d_model)
         )
         
-        # ==========================================================
-        # 调制权重系数 (Model 1 核心：可学习的独立标量，无动态门控)
-        # ==========================================================
+
         self.w_enh = nn.Parameter(torch.tensor(0.5))
         self.w_scene = nn.Parameter(torch.tensor(0.5))
         self.w_sup = nn.Parameter(torch.tensor(0.5))
@@ -55,10 +52,7 @@ class CABFM(nn.Module):
             
             # 全局场景注意力
             scene_map = torch.einsum('bc,bchw->bhw', scene_context, src).unsqueeze(1).sigmoid()
-            
-            # ==========================================================
-            # --- 原始巅峰公式：直接使用 sup_map 进行抑制 ---
-            # ==========================================================
+
             enh_weight = (enh_map * self.w_enh + scene_map * self.w_scene) + 1.0
             sup_weight = 1.0 - (sup_map * self.w_sup)
             
