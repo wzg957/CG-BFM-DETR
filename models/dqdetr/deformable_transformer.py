@@ -25,7 +25,7 @@ from .dn_components import prepare_for_cdn,dn_post_process
 
 from .ccm import CategoricalCounting
 from .cgfe import CGFE, MultiScaleFeature
-from .ca_bfm import CABFM  # <--- [新增] 导入专利级双向特征调制模块
+from .ca_bfm import CABFM  
 
 
 class DeformableTransformer(nn.Module):
