@@ -301,10 +301,10 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
 
     # accumulate predictions from all images
     if coco_evaluator is not None:
-        # --- 终极强杀：拦截并篡改评估参数 --- 
+        
         for it in coco_evaluator.coco_eval:
             coco_evaluator.coco_eval[it].params.maxDets = [1, 100, 500]
-        # -------------------------------------- 
+ 
         coco_evaluator.accumulate()
         coco_evaluator.summarize()
         
