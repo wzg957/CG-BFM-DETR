@@ -10,20 +10,19 @@ lr_linear_proj_mult = 0.1
 ddetr_lr_param = False
 batch_size = 1
 weight_decay = 0.0001
-epochs = 12
-lr_drop = 10
+epochs = 24
+lr_drop = 11
 save_checkpoint_interval = 1
 clip_max_norm = 0.1
 onecyclelr = False
-multi_step_lr = False
-lr_drop_list = [10, 11]
-val_epoch = [40,45,49]
+multi_step_lr = True
+lr_drop_list = [13, 23]
+val_epoch = [23]
 # dataset_file='aitod_v2'
 
 ccm_params = [10,50,100]
 ccm_cls_num = 4
-# 👇 这里是柔性提分的灵魂：抬高下限，保护大目标，增加小目标搜索冗余
-dynamic_query_list = [500, 900, 1200, 1500] 
+dynamic_query_list = [300, 500, 900, 1500]
 find_unused_parameters = False
 
 modelname = 'dqdetr'
@@ -114,3 +113,4 @@ ema_decay = 0.9997
 ema_epoch = 0
 
 use_detached_boxes_dec_out = False
+
