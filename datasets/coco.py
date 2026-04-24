@@ -542,8 +542,7 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
             ])   
 
         return T.Compose([
-            # 👇 这里就是破除默认限制，强制放大图片尺寸的核心！
-            T.RandomResize([1000], max_size=1600),
+            T.RandomResize([max(scales)], max_size=max_size),
             normalize,
         ])
 
@@ -623,32 +622,29 @@ def get_aux_target_hacks_list(image_set, args):
 
 def build(image_set, args):
     root = Path(args.coco_path)
+    mode = 'instances'
     
-
     if args.dataset_file == 'aitod_v2':
         PATHS = {
-            "train": (root / "images/train", root / "annotations/aitodv2_train.json"),
-            "trainval": (root / "images/trainval", root / "annotations/aitodv2_trainval.json"),
-            "val": (root / "images/val", root / "annotations/aitodv2_val.json"),
-            "eval_debug": (root / "images/val", root / "annotations/aitodv2_val.json"),
-            "test": (root / "images/test", root / "annotations/aitodv2_test.json"),
-        }
-    else:
-
-        PATHS = {
-            "train": (root / "train2017", root / "annotations" / f'instances_train2017.json'),
-            "val": (root / "val2017", root / "annotations" / f'instances_val2017.json'),
+            "train": (root / "images/train", root / "annotations" / 'aitodv2_train.json'),
+            "trainval": (root / "images/trainval", root / "annotations" / 'aitodv2_trainval.json'),
+            "val": (root / "images/val", root / "annotations" / 'aitodv2_val.json'),
+            "eval_debug": (root / "images/val", root / "annotations" / 'aitodv2_val.json'),
+            "test": (root / "images/test", root / "annotations" / 'aitodv2_test.json' ),
         }
 
-    img_folder, ann_file = PATHS[image_set]
+    # add some hooks to datasets
     aux_target_hacks_list = get_aux_target_hacks_list(image_set, args)
+    img_folder, ann_file = PATHS[image_set]
+
+    # copy to local path
+    if os.environ.get('DATA_COPY_SHILONG') == 'INFO':
+        preparing_dataset(dict(img_folder=img_folder, ann_file=ann_file), image_set, args)
 
     try:
         strong_aug = args.strong_aug
     except:
         strong_aug = False
-
-   
     dataset = CocoDetection(img_folder, ann_file, 
             transforms=make_coco_transforms(image_set, fix_size=args.fix_size, strong_aug=strong_aug, args=args), 
             return_masks=args.masks,
