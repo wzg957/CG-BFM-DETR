@@ -25,7 +25,7 @@ from .dn_components import prepare_for_cdn,dn_post_process
 
 from .ccm import CategoricalCounting
 from .cgfe import CGFE, MultiScaleFeature
-from .ca_bfm import CABFM  
+from .ca_bfm import CABFM  # <--- [新增] 导入专利级双向特征调制模块
 
 
 class DeformableTransformer(nn.Module):
@@ -123,8 +123,9 @@ class DeformableTransformer(nn.Module):
         
         self.dynamic_query_list = dynamic_query_list
         self.CCM = CategoricalCounting(cls_num=self.ccm_cls_num)
-        
-        
+        self.CGFE = CGFE(gate_channels=256, reduction_ratio=16, num_feature_levels=self.num_feature_levels)
+        self.multiscale = MultiScaleFeature(is_5_scale=True)
+        # [修改回 Model 1] 不需要传入 num_levels，回归死参数版本
         self.ca_bfm = CABFM(d_model=d_model, num_classes=self.ccm_cls_num)
         
         self.encoder = TransformerEncoder(
@@ -330,9 +331,12 @@ class DeformableTransformer(nn.Module):
         #########################################################  
         
         counting_output, ccm_feature = self.CCM(memory, spatial_shapes)
-              
+        multi_ccm_feature = self.multiscale(ccm_feature)
+        cgfe_out = self.CGFE(multi_ccm_feature, memory, spatial_shapes)
+        memory = cgfe_out        
         
         # ==============================================================
+        # [Patent Module: CA-BFM] 上下文引导的双向特征调制 (Model 1 死参数版)
         # 1. 将 1D memory 还原为 2D 多尺度特征图列表
         B, _, C = memory.shape
         memory_2d = []
@@ -349,6 +353,7 @@ class DeformableTransformer(nn.Module):
         memory = torch.cat([m.flatten(2).transpose(1, 2) for m in modulated_memory_2d], dim=1)
         # ==============================================================
         
+        # 注释掉这两行老实巴交的代码
         _, predicted = torch.max(counting_output.data, 1)
         num_select = self.dynamic_query_list[max(predicted.tolist())]
         
