@@ -2,20 +2,17 @@ import torch
 import torch.nn as nn
 
 class CABFM(nn.Module):
-    """
-    Context-Guided Bidirectional Feature Modulation (CA-BFM)
-    专利版：离线数据驱动上下文双向调制模块 (Dense Pixel-Matching)
-    *** 当前版本: Model 1 (原始巅峰 36.9% 版) ***
-    """
-    # 把默认参数里的 /hy-tmp/... 改掉
+    
+    
+    
     def __init__(self, d_model=256, num_classes=10, template_path='/data/zegao/DQ-DETR-Patent/offline_context_templates.pt'):
         super().__init__()
         self.d_model = d_model
         
         try:
             templates = torch.load(template_path, map_location='cpu')
-            self.register_buffer('enh_templates', templates['enh_templates']) # [10, 256]
-            self.register_buffer('sup_templates', templates['sup_templates']) # [10, 256]
+            self.register_buffer('enh_templates', templates['enh_templates']) 
+            self.register_buffer('sup_templates', templates['sup_templates']) 
         except Exception as e:
             print(f"警告: 未能加载离线模板。错误信息: {e}")
             self.register_buffer('enh_templates', torch.zeros(num_classes, d_model))
@@ -57,9 +54,7 @@ class CABFM(nn.Module):
             # 全局场景注意力
             scene_map = torch.einsum('bc,bchw->bhw', scene_context, src).unsqueeze(1).sigmoid()
             
-            # ==========================================================
-            # --- 原始巅峰公式：直接使用 sup_map 进行抑制 ---
-            # ==========================================================
+
             enh_weight = (enh_map * self.w_enh + scene_map * self.w_scene) + 1.0
             sup_weight = 1.0 - (sup_map * self.w_sup)
             
