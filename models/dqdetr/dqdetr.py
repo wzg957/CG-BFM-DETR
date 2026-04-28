@@ -651,7 +651,7 @@ class PostProcess(nn.Module):
         
         # num_select = target_num          
         out_logits, out_bbox = outputs['pred_logits'], outputs['pred_boxes']
-        # ⬇️ 加上这行流氓代码：直接提取网络输出的全部框（模型吐多少，我们就收多少，绝不截断！）
+        
         num_select = out_logits.shape[1]
         assert len(out_logits) == len(target_sizes)
         assert target_sizes.shape[1] == 2
