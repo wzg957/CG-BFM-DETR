@@ -11,7 +11,7 @@ from PIL import Image
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
-# ================= 配置区域 =================
+# ================= Configuration Area =================
 ANN_FILE = '/data/zegao/coco_visdrone/annotations/aitodv2_trainval.json' 
 IMG_DIR = '/data/zegao/coco_visdrone/images/trainval'
 D_MODEL = 256
@@ -47,7 +47,7 @@ class CropDataset(Dataset):
             return torch.zeros(3, 64, 64)
 
 def main():
-    print("1. 初始化特征提取器 (ResNet-18 -> 256D)...")
+    print("1. Initialize feature extractor (ResNet-18 -> 256D)...")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     resnet = models.resnet18(pretrained=True)
     extractor = nn.Sequential(*list(resnet.children())[:-1], nn.Flatten(), nn.Linear(512, D_MODEL))
@@ -64,12 +64,12 @@ def main():
     
     
     FREQ_THRESHOLD = int(FREQ_RATIO * len(img_ids))
-    print(f"-> 数据集图片总数 |D| = {len(img_ids)}")
-    print(f"-> 根据论文公式计算的高频阈值 Nfreq = {FREQ_THRESHOLD}")
+    print(f"-> Total number of images in dataset |D| = {len(img_ids)}")
+    print(f"-> High-frequency threshold Nfreq calculated according to the paper's formula = {FREQ_THRESHOLD}")
     
-    # === 阶段 1：挖掘高频共现对 ===
+    # === Stage 1: Mine high-frequency co-occurrence pairs ===
     pair_counts = collections.defaultdict(int)
-    for img_id in tqdm(img_ids, desc="统计类别共现频率"):
+    for img_id in tqdm(img_ids, desc="Calculate category co-occurrence frequency"):
         anns = coco.loadAnns(coco.getAnnIds(imgIds=img_id))
         if len(anns) < 2: continue
         cat_counts = collections.Counter(cat2idx[ann['category_id']] for ann in anns)
@@ -80,13 +80,13 @@ def main():
 
     valid_pairs = sorted(list(set(pair for pair, count in pair_counts.items() if count > FREQ_THRESHOLD)))
     P = len(valid_pairs)
-    print(f" -> 发现 {P} 对高频共现组合。\n")
+    print(f" -> Found {P} pairs of high-frequency co-occurrence combinations.\n")
     
-    # === 阶段 2：严格按 Pair 收集数据 ===
+    # === Stage 2: Collect data strictly by Pair ===
     pair_relations = collections.defaultdict(list)
     pair_crops = collections.defaultdict(list)
     
-    for img_id in tqdm(img_ids, desc="提取空间特征"): 
+    for img_id in tqdm(img_ids, desc="Extract spatial features"): 
         anns = coco.loadAnns(coco.getAnnIds(imgIds=img_id))
         if len(anns) < 2: continue
         img_path = os.path.join(IMG_DIR, coco.loadImgs(img_id)[0]['file_name'])
@@ -100,11 +100,11 @@ def main():
                 
                 vec = get_spatial_vector(ann_i['bbox'], ann_j['bbox'])
                 pair_relations[(c_i, c_j)].append(vec)
-                pair_crops[(c_i, c_j)].append((img_path, ann_j['bbox'])) # 收集关联目标的视觉特征
+                pair_crops[(c_i, c_j)].append((img_path, ann_j['bbox'])) # Collect visual features of associated targets
                 break 
 
-    # === 阶段 3：按 Pair 构建 GMM 并提取 [P, 256] 模板 ===
-    print(f"\n3. 提取特征，构建尺寸为 [{P}, 256] 的先验模板矩阵...")
+    # === Stage 3: Build GMM by Pair and extract [P, 256] templates ===
+    print(f"\n3. Extract features, build prior template matrix of size [{P}, 256]...")
     enh_templates = torch.zeros(P, D_MODEL).to(device)
     sup_templates = torch.zeros(P, D_MODEL).to(device)
 
@@ -124,7 +124,7 @@ def main():
             crops_info = pair_crops[(c_i, c_j)]
             if len(vecs) < 10: continue
             
-            # 对当前具体的高频对拟合 GMM
+            # Fit GMM for the current specific high-frequency pair
             gmm = GaussianMixture(n_components=2, covariance_type='diag', random_state=42)
             gmm.fit(vecs)
             log_probs = gmm.score_samples(vecs)
@@ -133,14 +133,14 @@ def main():
             normal_crops = [crops_info[k] for k, score in enumerate(log_probs) if score >= threshold]
             anomaly_crops = [crops_info[k] for k, score in enumerate(log_probs) if score < threshold]
             
-            # 直接赋值到 P 维度的对应行
+            # Assign directly to the corresponding row in P dimension
             enh_templates[p_idx] = extract_features_batched(normal_crops)
             sup_templates[p_idx] = extract_features_batched(anomaly_crops)
 
     torch.save({
-        'enh_templates': enh_templates.cpu(), # 形状：[P, 256]
-        'sup_templates': sup_templates.cpu(), # 形状：[P, 256]
-        'valid_pairs': valid_pairs            # 保存 Pair 列表备查
+        'enh_templates': enh_templates.cpu(), # Shape: [P, 256]
+        'sup_templates': sup_templates.cpu(), # Shape: [P, 256]
+        'valid_pairs': valid_pairs            # Save Pair list for reference
     }, 'offline_context_templates.pt')
 
 if __name__ == '__main__':
