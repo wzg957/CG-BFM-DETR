@@ -64,13 +64,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             else:
                 outputs = model(samples)
             
-            # --- 安全检查：过滤掉宽度或高度<=0的无效框 ---
             for target in targets:
                 keep = (target['boxes'][:, 2:] > 0).all(1)
                 if not keep.all():
                     target['boxes'] = target['boxes'][keep]
                     target['labels'] = target['labels'][keep]
-            # ---------------------------------------------
+            
             loss_dict = criterion(outputs, targets)
             weight_dict = criterion.weight_dict
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
