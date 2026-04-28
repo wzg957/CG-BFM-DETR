@@ -338,10 +338,10 @@ class DeformableTransformer(nn.Module):
             memory_2d.append(mem_h_w)
             start_idx += h * w
             
-        # 2. 送入 CA-BFM 进行增强/抑制双向洗礼 (Model 1 只返回特征，没有动态门控系数)
+        
         modulated_memory_2d = self.ca_bfm(memory_2d, counting_output)
 
-        # 3. 将调制后的 2D 特征图重新展平为 1D sequence，送给 Decoder
+        
         memory = torch.cat([m.flatten(2).transpose(1, 2) for m in modulated_memory_2d], dim=1)
 
         _, predicted = torch.max(counting_output.data, 1)
