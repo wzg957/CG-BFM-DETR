@@ -1,6 +1,5 @@
 # CG-BFM-DETR: Context-Guided Bidirectional Feature Modulation for UAV Object Detection
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19879545.svg)](https://doi.org/10.5281/zenodo.19879545)
 
 * This repository contains the official PyTorch implementation for our proposed **CG-BFM-DETR**. 
 * Our work focuses on tiny and small object detection in UAV scenarios, and the code is built upon the excellent [DQ-DETR](https://github.com/hoiliu-0801/DQ-DETR) and [DINO](https://github.com/IDEA-Research/DINO) repositories.
