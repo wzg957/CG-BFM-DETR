@@ -1,8 +1,22 @@
-git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI&egg=pycocotools
-git+https://github.com/cocodataset/panopticapi.git#egg=panopticapi
-submitit
+# Core Frameworks
+torch>=1.9.0
+torchvision>=0.10.0
+numpy>=1.19.5
 scipy
+
+# Image Processing & Computer Vision
+opencv-python
+Pillow
+
+# Model & Training Utilities
+timm
+submitit
 termcolor
 addict
 yapf
-timm
+tqdm
+Cython
+
+# COCO & Panoptic APIs
+git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI&egg=pycocotools
+git+https://github.com/cocodataset/panopticapi.git#egg=panopticapi
