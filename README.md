@@ -36,7 +36,18 @@ Organize the downloaded files in the following way:
 │      └─ test
 ├─ CG-BFM-DETR
 ```
-
+## 📁 Code Information
+Below is a brief overview of the core scripts and directories in this repository:
+* `main_aitod.py`: The main entry script used to initiate the training and evaluation of the CG-BFM-DETR model.
+* `engine.py`: Contains the core training and evaluation loops.
+* `mine_context_templates.py`: The script used to extract offline spatial and relation context templates (priors) before starting the training process.
+* `config/`: This directory contains the configuration files (e.g., `DQ_5scale.py`) specifying training hyperparameters and model architecture settings.
+* `models/`: Contains the core network architecture. Our newly proposed modules are specifically implemented in `models/dqdetr/`:
+  - `ca_bfm.py`: Implementation of the Context-Guided Bidirectional Feature Modulation (CG-BFM) module described in the paper.
+  - `ccm.py`: Implementation of the Categorical Counting Module (CCM) described in the paper.
+  - `cgfe.py`: Implementation of the Context-Guided Feature Extraction (CGFE) components.
+* `datasets/`: Includes scripts for data loading, data transformation, and COCO-format evaluation pipelines.
+* `scripts/`: Contains ready-to-use bash scripts (e.g., `DQ.sh`, `DQ_eval.sh`) for convenient execution of training and testing.
 ## 🧠 Methodology
 Our approach replaces parameter-heavy multi-scale fusion modules with a lightweight **Context-Guided Bidirectional Feature Modulation (CG-BFM)** module. 
 * **Data Processing**: Initial dataset annotations are converted into the standard COCO format.
